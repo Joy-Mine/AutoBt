@@ -1,0 +1,40 @@
+# 全局配置文件
+
+# 数据生成器配置
+data_generator:
+  seed: 42  # 随机种子
+  length: 1000  # 数据长度
+  frequency: 'D'  # 数据频率: D(日线), H(小时线), M(分钟线)
+  
+  # 蒙特卡洛模拟参数
+  monte_carlo:
+    mu: 0.0001  # 期望收益率
+    sigma: 0.01  # 波动率
+    
+  # GARCH模型参数
+  garch:
+    omega: 0.00001
+    alpha: 0.1
+    beta: 0.8
+    
+  # 市场状态转换模型
+  regime:
+    states: 2  # 状态数量
+    transition_matrix: [[0.95, 0.05], [0.05, 0.95]]
+    
+  # 极端情况模拟
+  extreme:
+    crash_probability: 0.01
+    crash_intensity: 0.1
+
+# 回测参数
+backtest:
+  cash: 100000  # 初始资金
+  commission: 0.001  # 手续费率
+  slippage: 0.001  # 滑点
+
+# 参数优化
+optimization:
+  trials: 100  # 优化尝试次数
+  metric: 'sharpe_ratio'  # 优化指标
+  direction: 'maximize'  # 优化方向
