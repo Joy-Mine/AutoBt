@@ -37,12 +37,42 @@ class BaseDataGenerator(ABC):
         将生成的数据转换为backtrader可用的数据源
         
         参数:
-            data: 生成的模拟数据
+            data: 生成的模拟数据, 期望列名包含 'datetime', 'open', 'high', 'low', 'close', 'volume'
             
         返回:
             backtrader的PandasData对象
         """
-        pass
+        # 确保datetime列是索引且为datetime对象
+        if not isinstance(data.index, pd.DatetimeIndex):
+            if 'datetime' in data.columns:
+                data['datetime'] = pd.to_datetime(data['datetime'])
+                data.set_index('datetime', inplace=True)
+            else:
+                raise ValueError("DataFrame必须包含'datetime'列或一个DatetimeIndex.")
+
+        # 重命名字段以匹配backtrader的期望
+        # backtrader 默认列名: datetime, open, high, low, close, volume, openinterest
+        # 如果你的DataFrame列名不同, 在这里进行映射
+        # 例如: data.rename(columns={'Date': 'datetime', 'OpenPrice': 'open'}, inplace=True)
+        
+        # 确保必要的列存在
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        for col in required_cols:
+            if col not in data.columns:
+                # 如果缺少关键列，可以用一些默认值填充或抛出错误
+                # 这里我们用close价格填充缺失的OHL，用0填充volume
+                if col in ['open', 'high', 'low'] and 'close' in data.columns:
+                    data[col] = data['close']
+                elif col == 'volume':
+                    data[col] = 0
+                else:
+                    raise ValueError(f"DataFrame缺少必需的列: {col}")
+        
+        # 添加 openinterest 列（如果不存在），backtrader 需要它
+        if 'openinterest' not in data.columns:
+            data['openinterest'] = 0.0
+
+        return bt.feeds.PandasData(dataname=data)
     
     def save_to_csv(self, data: pd.DataFrame, filename: str) -> None:
         """
@@ -52,4 +82,4 @@ class BaseDataGenerator(ABC):
             data: 生成的模拟数据
             filename: 保存的文件名
         """
-        pass
+        data.to_csv(filename)
