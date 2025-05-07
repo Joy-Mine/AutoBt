@@ -1,6 +1,5 @@
 import backtrader as bt
 import pandas as pd
-import importlib
 from typing import Dict, Any, Type, Tuple
 from src.optimizers import OptunaOptimizer
 from src.utils.visualizer import plot_optimization_results
@@ -63,14 +62,15 @@ def get_strategy_class(config: Dict[str, Any]) -> Type[bt.Strategy]:
         策略类
     """
     strategy_type = config.get('strategies', {}).get('type', 'SampleStrategy')
-    try:
-        module = importlib.import_module(f"src.strategies.{strategy_type.lower()}")
-        strategy_class = getattr(module, strategy_type)
-        return strategy_class
-    except ImportError as e:
-        raise ImportError(f"无法导入策略模块: src.strategies.{strategy_type.lower()}. Error: {e}")
-    except AttributeError:
-        raise AttributeError(f"在模块中未找到策略类: {strategy_type}")
+    
+    if strategy_type == 'SampleStrategy':
+        from src.strategies.sample_strategy import SampleStrategy
+        return SampleStrategy
+    elif strategy_type == 'DualMovingAverageStrategy':
+        from src.strategies.dual_moving_average_strategy import DualMovingAverageStrategy
+        return DualMovingAverageStrategy
+    else:
+        raise ValueError(f"未知的策略类型: {strategy_type}")
 
 if __name__ == '__main__':
     import yaml
