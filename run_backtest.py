@@ -76,7 +76,7 @@ def run_backtest(config: Dict[str, Any], strategy_name: str, plot: bool = True, 
     cerebro.broker.setcash(backtest_config.get('cash', 100000.0))
     cerebro.broker.setcommission(commission=backtest_config.get('commission', 0.001))
 
-    cerebro.addanalyzer(bt.analyzers.Sharpe, _name='sharpe')
+    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
     cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='tradeanalyzer')
