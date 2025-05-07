@@ -122,6 +122,9 @@ def run_backtest(config: Dict[str, Any], strategy_name: str, plot: bool = True, 
 
     return analysis_results
 
+
+
+
 if __name__ == '__main__':
     import yaml
     config_path = 'config/config.yaml'

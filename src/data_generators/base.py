@@ -52,7 +52,7 @@ class BaseDataGenerator(ABC):
 
         # 重命名字段以匹配backtrader的期望
         # backtrader 默认列名: datetime, open, high, low, close, volume, openinterest
-        # 如果你的DataFrame列名不同, 在这里进行映射
+        # 如果DataFrame的列名不同, 在这里进行映射
         # 例如: data.rename(columns={'Date': 'datetime', 'OpenPrice': 'open'}, inplace=True)
         
         # 确保必要的列存在
@@ -60,7 +60,7 @@ class BaseDataGenerator(ABC):
         for col in required_cols:
             if col not in data.columns:
                 # 如果缺少关键列，可以用一些默认值填充或抛出错误
-                # 这里我们用close价格填充缺失的OHL，用0填充volume
+                # 这里用close价格填充缺失的OHL，用0填充volume
                 if col in ['open', 'high', 'low'] and 'close' in data.columns:
                     data[col] = data['close']
                 elif col == 'volume':
