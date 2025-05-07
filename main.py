@@ -12,8 +12,6 @@ def main():
                         help='配置文件路径')
     parser.add_argument('--mode', type=str, choices=['backtest', 'optimize'], default='backtest',
                         help='运行模式: backtest或optimize')
-    parser.add_argument('--strategy', type=str, default='SampleStrategy',
-                        help='使用的策略名称')
     args = parser.parse_args()
     
     config = load_config(args.config)
@@ -21,11 +19,11 @@ def main():
     if args.mode == 'backtest':
         # 生成模拟数据并运行回测
         from run_backtest import run_backtest
-        run_backtest(config, args.strategy)
+        run_backtest(config)
     else:
         # 运行策略参数优化
         from run_optimization import run_optimization
-        run_optimization(config, args.strategy)
+        run_optimization(config)
 
 if __name__ == '__main__':
     main()

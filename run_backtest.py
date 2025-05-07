@@ -29,32 +29,32 @@ def get_data_generator(config: Dict[str, Any]) -> BaseDataGenerator:
     else:
         raise ValueError(f"未知的模拟数据生成器类型: {generator_type}")
 
-def get_strategy_class(strategy_name: str) -> Type[bt.Strategy]:
+def get_strategy_class(config: Dict[str, Any]) -> Type[bt.Strategy]:
     """
-    根据名称获取策略类
+    根据配置获取策略类
     
     参数:
-        strategy_name: 策略名称 (e.g., 'SampleStrategy')
+        config: 配置字典
         
     返回:
         策略类
     """
+    strategy_type = config.get('strategies', {}).get('type', 'SampleStrategy')
     try:
-        module = importlib.import_module(f"src.strategies.{strategy_name.lower()}_strategy")
-        strategy_class = getattr(module, strategy_name)
+        module = importlib.import_module(f"src.strategies.{strategy_type.lower()}")
+        strategy_class = getattr(module, strategy_type)
         return strategy_class
     except ImportError as e:
-        raise ImportError(f"无法导入策略模块: src.strategies.{strategy_name.lower()}_strategy. Error: {e}")
+        raise ImportError(f"无法导入策略模块: src.strategies.{strategy_type.lower()}. Error: {e}")
     except AttributeError:
-        raise AttributeError(f"在模块中未找到策略类: {strategy_name}")
+        raise AttributeError(f"在模块中未找到策略类: {strategy_type}")
 
-def run_backtest(config: Dict[str, Any], strategy_name: str, plot: bool = True, results_dir: str = 'results') -> Dict[str, Any]:
+def run_backtest(config: Dict[str, Any], plot: bool = True, results_dir: str = 'results') -> Dict[str, Any]:
     """
     执行回测
     
     参数:
         config: 配置字典
-        strategy_name: 要使用的策略名称
         plot: 是否绘制结果图表
         results_dir: 保存结果图表的目录
         
@@ -68,8 +68,8 @@ def run_backtest(config: Dict[str, Any], strategy_name: str, plot: bool = True, 
     cerebro = bt.Cerebro()
     cerebro.adddata(bt_data_feed)
     
-    StrategyClass = get_strategy_class(strategy_name)
-    strategy_params = config.get('strategies', {}).get(strategy_name, {}).get('params', {})
+    StrategyClass = get_strategy_class(config)
+    strategy_params = config.get('strategies', {}).get(config['strategies']['type'], {}).get('params', {})
     cerebro.addstrategy(StrategyClass, **strategy_params)
     
     backtest_config = config.get('backtest', {})
@@ -82,7 +82,7 @@ def run_backtest(config: Dict[str, Any], strategy_name: str, plot: bool = True, 
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='tradeanalyzer')
     cerebro.addanalyzer(bt.analyzers.PyFolio, _name='pyfolio')
 
-    print(f"开始回测策略: {strategy_name}...")
+    print(f"开始回测策略: {config['strategies']['type']}...")
     results = cerebro.run()
     strat = results[0]
     print(f"回测完成. 最终组合价值: {cerebro.broker.getvalue():.2f}")
@@ -117,8 +117,8 @@ def run_backtest(config: Dict[str, Any], strategy_name: str, plot: bool = True, 
     print("-----------------")
 
     if plot:
-        plot_equity_curve(portfolio_values, title=f"Equity Curve - {strategy_name}", save_path=os.path.join(results_dir, f"{strategy_name}_equity_curve.png"))
-        plot_drawdown(portfolio_values, title=f"Drawdown - {strategy_name}", save_path=os.path.join(results_dir, f"{strategy_name}_drawdown.png"))
+        plot_equity_curve(portfolio_values, title=f"Equity Curve - {config['strategies']['type']}", save_path=os.path.join(results_dir, f"{config['strategies']['type']}_equity_curve.png"))
+        plot_drawdown(portfolio_values, title=f"Drawdown - {config['strategies']['type']}", save_path=os.path.join(results_dir, f"{config['strategies']['type']}_drawdown.png"))
 
     return analysis_results
 
@@ -152,6 +152,6 @@ if __name__ == '__main__':
         config['data_generator'] = {}
     config['data_generator']['type'] = 'monte_carlo'
 
-    results = run_backtest(config, 'SampleStrategy', plot=True)
+    results = run_backtest(config, plot=True)
     print("\nDetailed Results Dictionary:")
     print(results)
