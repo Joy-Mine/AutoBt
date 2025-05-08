@@ -2,7 +2,7 @@
 
 # 数据生成器配置
 data_generator:
-  type: monte_carlo  # 数据生成器类型: monte_carlo, garch, regime, extreme
+  type: monte_carlo  # 数据生成器类型: monte_carlo, garch, regime, extreme, multi_asset, stress_test
   seed: 42  # 随机种子
   length: 1000  # 数据长度
   frequency: 'D'  # 数据频率: D(日线), H(小时线), M(分钟线)
@@ -27,6 +27,34 @@ data_generator:
   extreme:
     crash_probability: 0.01
     crash_intensity: 0.1
+    
+  # 多资产相关性模拟
+  multi_asset:
+    num_assets: 3  # 资产数量
+    asset_names: ["Stock", "Bond", "Gold"]  # 资产名称
+    # 相关性矩阵 (Stock, Bond, Gold)
+    correlation_matrix: [
+      [1.0, -0.3, 0.1],  # Stock与其他资产的相关性
+      [-0.3, 1.0, 0.0],  # Bond与其他资产的相关性
+      [0.1, 0.0, 1.0]    # Gold与其他资产的相关性
+    ]
+    sigmas: [0.015, 0.008, 0.012]  # 各资产波动率
+    mus: [0.0002, 0.0001, 0.00015]  # 各资产漂移率
+    
+  # 压力测试模拟
+  stress_test:
+    event_type: random  # 事件类型: crash(崩盘), rally(暴涨), volatility(高波动), random(随机)
+    # 崩盘参数
+    crash_intensity: 0.3  # 崩盘强度（跌幅）
+    crash_duration: 20    # 崩盘持续时间（天）
+    crash_recovery: 60    # 崩盘恢复时间（天）
+    # 暴涨参数
+    rally_intensity: 0.3  # 暴涨强度（涨幅）
+    rally_duration: 20    # 暴涨持续时间（天）
+    rally_correction: 30  # 暴涨后修正时间（天）
+    # 高波动参数
+    vol_multiplier: 3.0   # 高波动期波动率倍数
+    vol_duration: 40      # 高波动期持续时间（天）
 
 # 回测参数
 backtest:
@@ -36,7 +64,7 @@ backtest:
 
 # 策略配置
 strategies:
-  type: SampleStrategy  # 当前使用的策略类型
+  type: MomentumStrategy  # 当前使用的策略类型: SampleStrategy, DualMovingAverageStrategy, MeanReversionStrategy, MomentumStrategy
 
   SampleStrategy:
     fast_period: 10  # 快速均线周期
@@ -49,6 +77,20 @@ strategies:
     long_window: 50  # 长期均线窗口
     order_percentage: 0.9  # 下单资金比例
     stop_loss: 0.1  # 止损比例
+    
+  MeanReversionStrategy:
+    lookback: 20         # 均值计算的回看周期
+    entry_std: 2.0       # 入场标准差倍数
+    exit_std: 0.5        # 出场标准差倍数
+    order_percentage: 0.95  # 下单资金比例
+    stop_loss: 0.05      # 止损比例
+    
+  MomentumStrategy:
+    momentum_period: 30    # 动量计算周期
+    signal_period: 9       # 信号平滑周期
+    order_percentage: 0.95 # 下单资金比例
+    stop_loss: 0.05        # 止损比例
+    trailing_stop: 0.02    # 跟踪止损比例
 
 # 参数优化
 optimization:
@@ -90,3 +132,37 @@ optimization:
         type: float
         low: 0.05
         high: 0.2
+    MeanReversionStrategy:
+      lookback:
+        type: int
+        low: 10
+        high: 50
+      entry_std:
+        type: float
+        low: 1.0
+        high: 3.0
+      exit_std:
+        type: float
+        low: 0.1
+        high: 1.0
+      stop_loss:
+        type: float
+        low: 0.03
+        high: 0.1
+    MomentumStrategy:
+      momentum_period:
+        type: int
+        low: 20
+        high: 60
+      signal_period:
+        type: int
+        low: 5
+        high: 20
+      stop_loss:
+        type: float
+        low: 0.03
+        high: 0.1
+      trailing_stop:
+        type: float
+        low: 0.01
+        high: 0.05

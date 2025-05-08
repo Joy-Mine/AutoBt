@@ -25,6 +25,12 @@ def get_data_generator(config: Dict[str, Any]) -> BaseDataGenerator:
     elif generator_type == 'regime':
         from src.data_generators.regime import RegimeSwitchingGenerator
         return RegimeSwitchingGenerator(data_config)
+    elif generator_type == 'multi_asset':
+        from src.data_generators.multi_asset_generator import MultiAssetGenerator
+        return MultiAssetGenerator(data_config)
+    elif generator_type == 'stress_test':
+        from src.data_generators.stress_test_generator import StressTestGenerator
+        return StressTestGenerator(data_config)
     else:
         print(f"未知的模拟数据生成器类型: {generator_type}，使用默认的monte_carlo")
         from src.data_generators.monte_carlo import MonteCarloGenerator
@@ -48,6 +54,12 @@ def get_strategy_class(config: Dict[str, Any]) -> Type[bt.Strategy]:
     elif strategy_type == 'DualMovingAverageStrategy':
         from src.strategies.dual_moving_average_strategy import DualMovingAverageStrategy
         return DualMovingAverageStrategy
+    elif strategy_type == 'MeanReversionStrategy':
+        from src.strategies.mean_reversion_strategy import MeanReversionStrategy
+        return MeanReversionStrategy
+    elif strategy_type == 'MomentumStrategy':
+        from src.strategies.momentum_strategy import MomentumStrategy
+        return MomentumStrategy
     else:
         print(f"未知的策略类型: {strategy_type}，使用默认SampleStrategy")
         from src.strategies.sample_strategy import SampleStrategy
