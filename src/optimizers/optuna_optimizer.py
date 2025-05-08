@@ -1,6 +1,10 @@
+import numpy as np
 import optuna
 import backtrader as bt
 import pandas as pd  # Added for portfolio_values series
+import json
+import os
+import datetime
 from typing import Dict, Any, Callable, Type, List, Tuple, Optional
 import importlib  # Added for dynamic strategy loading
 import os  # Added for path joining
@@ -26,6 +30,12 @@ def get_data_generator(config: Dict[str, Any]) -> BaseDataGenerator:
     elif generator_type == 'regime':
         from src.data_generators.regime import RegimeSwitchingGenerator
         return RegimeSwitchingGenerator(data_config)
+    elif generator_type == 'multi_asset':
+        from src.data_generators.multi_asset import MultiAssetGenerator
+        return MultiAssetGenerator(data_config)
+    elif generator_type == 'stress_test':
+        from src.data_generators.stress_test import StressTestGenerator
+        return StressTestGenerator(data_config)
     else:
         raise ValueError(f"Unknown data generator type: {generator_type}")
 
@@ -77,6 +87,9 @@ class OptunaOptimizer:
         self.trials = config.get('optimization', {}).get('trials', 100)
         self.metric = config.get('optimization', {}).get('metric', 'sharpe_ratio')
         self.direction = config.get('optimization', {}).get('direction', 'maximize')
+        # 结果保存路径
+        self.results_dir = 'results'
+        os.makedirs(self.results_dir, exist_ok=True)
 
     def optimize(self,
                  strategy_name: str,  # Changed from strategy_cls to name for dynamic loading
@@ -99,6 +112,28 @@ class OptunaOptimizer:
         StrategyClass = get_strategy_class(strategy_name)
         param_space = self._get_param_space(StrategyClass)
 
+        # 检查是否有已保存的优化结果
+        result_file = os.path.join(self.results_dir, f"{strategy_name}_optimization_results.json")
+        if os.path.exists(result_file) and not storage_url:
+            print(f"发现已保存的优化结果: {result_file}")
+            print("使用 --force-optimize 参数重新优化")
+            
+            try:
+                # 加载并显示已保存的优化结果
+                with open(result_file, 'r') as f:
+                    saved_results = json.load(f)
+                
+                print(f"已保存的最佳参数 ({saved_results['date']}):")
+                for param, value in saved_results['best_params'].items():
+                    print(f"  {param}: {value}")
+                print(f"最佳{self.metric}: {saved_results['best_value']}")
+                
+                # 创建一个假的study用于返回
+                dummy_study = optuna.create_study(direction=self.direction)
+                return dummy_study
+            except Exception as e:
+                print(f"读取保存的结果时出错: {e}. 正在进行新的优化...")
+
         # Create or load Optuna study
         study = optuna.create_study(
             study_name=study_name or f"{strategy_name}_optimization",
@@ -116,16 +151,55 @@ class OptunaOptimizer:
             n_trials=self.trials
         )
 
-        print(f"Optimization finished for {strategy_name}.")
-        print(f"Number of finished trials: {len(study.trials)}")
-        print(f"Best trial for {self.metric}:")
+        print(f"优化完成: {strategy_name}.")
+        print(f"完成的试验数量: {len(study.trials)}")
+        print(f"最佳试验 ({self.metric}):")
+        
         best_trial = study.best_trial
-        print(f"  Value: {best_trial.value}")
-        print("  Params: ")
+        print(f"  值: {best_trial.value}")
+        print("  参数: ")
         for key, value in best_trial.params.items():
             print(f"    {key}: {value}")
-
+        
+        # 保存优化结果
+        self.save_optimization_results(strategy_name, study)
+        
         return study
+
+    def save_optimization_results(self, strategy_name: str, study: optuna.Study) -> None:
+        """保存优化结果到JSON文件"""
+        
+        if hasattr(study, 'best_trial') and study.best_trial:
+            results = {
+                'date': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'strategy': strategy_name,
+                'metric': self.metric,
+                'trials': len(study.trials),
+                'best_value': float(study.best_value) if not np.isnan(study.best_value) and not np.isinf(study.best_value) else "N/A",
+                'best_params': dict(study.best_trial.params),
+                'direction': self.direction
+            }
+            
+            # 保存完整的trials信息
+            trial_records = []
+            for trial in study.trials:
+                if trial.state == optuna.trial.TrialState.COMPLETE and not np.isnan(trial.value) and not np.isinf(trial.value):
+                    trial_records.append({
+                        'number': trial.number,
+                        'params': trial.params,
+                        'value': float(trial.value)
+                    })
+            
+            results['trial_records'] = trial_records
+            
+            # 保存到文件
+            file_path = os.path.join(self.results_dir, f"{strategy_name}_optimization_results.json")
+            with open(file_path, 'w') as f:
+                json.dump(results, f, indent=2)
+            
+            print(f"优化结果已保存到: {file_path}")
+        else:
+            print("没有可保存的最佳结果")
 
     def _get_param_space(self, strategy_cls: Type[bt.Strategy]) -> Dict[str, Dict[str, Any]]:
         """
@@ -144,18 +218,18 @@ class OptunaOptimizer:
         if opt_params_config:
             return opt_params_config
         else:
-            print(f"Warning: Detailed param_space for {strategy_name} not found in config. Attempting basic inference.")
+            print(f"警告: 在配置中未找到 {strategy_name} 的详细参数空间。尝试进行基本推断。")
             space = {}
             if hasattr(strategy_cls, 'params') and isinstance(strategy_cls.params, tuple):
                 for p_tuple in strategy_cls.params:
                     if isinstance(p_tuple, tuple) and len(p_tuple) >= 2:
                         name = p_tuple[0]
                         if isinstance(p_tuple[1], int):
-                            space[name] = {'type': 'int', 'low': p_tuple[1] // 2, 'high': p_tuple[1] * 2}
+                            space[name] = {'type': 'int', 'low': max(1, p_tuple[1] // 2), 'high': p_tuple[1] * 2}
                         elif isinstance(p_tuple[1], float):
-                            space[name] = {'type': 'float', 'low': p_tuple[1] / 2, 'high': p_tuple[1] * 2}
+                            space[name] = {'type': 'float', 'low': max(0.001, p_tuple[1] / 2), 'high': p_tuple[1] * 2}
             if not space:
-                raise ValueError(f"Cannot determine param_space for {strategy_name}. Please define it in config.")
+                raise ValueError(f"无法确定 {strategy_name} 的参数空间。请在配置中定义它。")
             return space
 
     def objective(self,
@@ -191,7 +265,7 @@ class OptunaOptimizer:
             elif param_type == 'categorical':
                 suggested_params[name] = trial.suggest_categorical(name, p_config['choices'])
             else:
-                raise ValueError(f"Unsupported parameter type {param_type} for {name}")
+                raise ValueError(f"不支持的参数类型 {param_type} (参数: {name})")
 
         cerebro.addstrategy(strategy_cls, **suggested_params)
 
@@ -200,38 +274,57 @@ class OptunaOptimizer:
         cerebro.broker.setcommission(commission=backtest_config.get('commission', 0.001))
 
         cerebro.addanalyzer(bt.analyzers.PyFolio, _name='pyfolio')
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe', 
+                           riskfreerate=0.0, annualize=True, timeframe=bt.TimeFrame.Days)
+        cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
+        cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
 
         try:
             results = cerebro.run()
             strat = results[0]
 
-            portfolio_values_dict = strat.analyzers.pyfolio.get_analysis()['portfolio_value']
-            if not portfolio_values_dict:
-                print(f"Warning: Trial {trial.number} resulted in empty portfolio_value.")
-                return -float('inf') if self.direction == 'maximize' else float('inf')
+            # 首先尝试使用PyFolio分析器
+            if hasattr(strat.analyzers, 'pyfolio'):
+                portfolio_values_dict = strat.analyzers.pyfolio.get_analysis().get('portfolio_value', {})
+                if portfolio_values_dict:
+                    portfolio_values = pd.Series(list(portfolio_values_dict.values()), 
+                                               index=pd.to_datetime(list(portfolio_values_dict.keys())))
 
-            portfolio_values = pd.Series(list(portfolio_values_dict.values()), index=pd.to_datetime(list(portfolio_values_dict.keys())))
+                    if not portfolio_values.empty and len(portfolio_values) >= 2:
+                        freq = self.config.get('data_generator', {}).get('frequency', 'D')
+                        periods_map = {'D': 252, 'H': 252 * 24, 'M': 252 * 24 * 60}
+                        periods_per_year = periods_map.get(freq, 252)
 
-            if portfolio_values.empty or len(portfolio_values) < 2:
-                print(f"Warning: Trial {trial.number} resulted in insufficient portfolio data.")
-                return -float('inf') if self.direction == 'maximize' else float('inf')
+                        all_metrics = calculate_metrics(portfolio_values, periods_per_year=periods_per_year)
+                        metric_value = all_metrics.get(self.metric, None)
+                        
+                        # 确保返回有效值
+                        if metric_value is not None and np.isfinite(metric_value):
+                            print(f"试验 {trial.number} 参数: {suggested_params}, {self.metric}: {metric_value:.4f}")
+                            return metric_value
 
-            freq = self.config.get('data_generator', {}).get('frequency', 'D')
-            periods_map = {'D': 252, 'H': 252 * 24, 'M': 252 * 24 * 60}
-            periods_per_year = periods_map.get(freq, 252)
-
-            all_metrics = calculate_metrics(portfolio_values, periods_per_year=periods_per_year)
-            metric_value = all_metrics.get(self.metric, None)
-
-            if metric_value is None:
-                print(f"Warning: Metric '{self.metric}' not found in calculated metrics for trial {trial.number}. Available: {all_metrics.keys()}")
-                return -float('inf') if self.direction == 'maximize' else float('inf')
-
-            if pd.isna(metric_value) or not np.isfinite(metric_value):
-                print(f"Warning: Trial {trial.number} resulted in non-finite metric value ({metric_value}).")
-                return -float('inf') if self.direction == 'maximize' else float('inf')
-
-            return metric_value
+            # 尝试使用特定分析器
+            if self.metric == 'sharpe_ratio' and hasattr(strat.analyzers, 'sharpe'):
+                sharpe = strat.analyzers.sharpe.get_analysis().get('sharperatio', 0.0)
+                if np.isfinite(sharpe):
+                    print(f"试验 {trial.number} 参数: {suggested_params}, 夏普比率: {sharpe:.4f}")
+                    return sharpe
+                
+            if self.metric == 'max_drawdown' and hasattr(strat.analyzers, 'drawdown'):
+                max_dd = strat.analyzers.drawdown.get_analysis().get('max', {}).get('drawdown', 0.0)
+                if np.isfinite(max_dd):
+                    # 优化最小化回撤 (负值以便在最大化优化方向时使用)
+                    return -max_dd / 100.0  # 转换为小数
+                
+            if self.metric == 'total_return' and hasattr(strat.analyzers, 'returns'):
+                ret = strat.analyzers.returns.get_analysis().get('rtot', 0.0)
+                if np.isfinite(ret): 
+                    return ret
+            
+            # 如果所有方法都失败，则返回一个默认的无效值
+            print(f"警告: 试验 {trial.number} 无法计算 {self.metric}, 返回无效值")
+            return float('-inf') if self.direction == 'maximize' else float('inf')
+            
         except Exception as e:
-            print(f"Error during trial {trial.number} with params {suggested_params}: {e}")
-            return -float('inf') if self.direction == 'maximize' else float('inf')
+            print(f"试验 {trial.number} 出错, 参数 {suggested_params}: {e}")
+            return float('-inf') if self.direction == 'maximize' else float('inf')
