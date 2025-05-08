@@ -31,6 +31,10 @@ def main():
     
     config = load_config(args.config)
     
+    # 输出模拟数据生成模式
+    data_generator_type = args.data_generator if args.data_generator else config.get('data_generator', {}).get('type', 'monte_carlo')
+    print(f"本次模拟数据的生成模式为: {data_generator_type}")
+    
     # 根据命令行参数修改配置
     if args.data_generator:
         config['data_generator']['type'] = args.data_generator

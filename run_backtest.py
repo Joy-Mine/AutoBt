@@ -26,10 +26,10 @@ def get_data_generator(config: Dict[str, Any]) -> BaseDataGenerator:
         from src.data_generators.regime import RegimeSwitchingGenerator
         return RegimeSwitchingGenerator(data_config)
     elif generator_type == 'multi_asset':
-        from src.data_generators.multi_asset_generator import MultiAssetGenerator
+        from src.data_generators.multi_asset import MultiAssetGenerator
         return MultiAssetGenerator(data_config)
     elif generator_type == 'stress_test':
-        from src.data_generators.stress_test_generator import StressTestGenerator
+        from src.data_generators.stress_test import StressTestGenerator
         return StressTestGenerator(data_config)
     else:
         print(f"未知的模拟数据生成器类型: {generator_type}，使用默认的monte_carlo")

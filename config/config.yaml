@@ -64,7 +64,7 @@ backtest:
 
 # 策略配置
 strategies:
-  type: MomentumStrategy  # 当前使用的策略类型: SampleStrategy, DualMovingAverageStrategy, MeanReversionStrategy, MomentumStrategy
+  type: SampleStrategy  # 当前使用的策略类型: SampleStrategy, DualMovingAverageStrategy, MeanReversionStrategy, MomentumStrategy
 
   SampleStrategy:
     fast_period: 10  # 快速均线周期
