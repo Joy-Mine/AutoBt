@@ -14,10 +14,20 @@ def calculate_sharpe_ratio(returns: pd.Series, risk_free_rate: float = 0.0, peri
     返回:
         年化夏普比率
     """
-    if returns.empty or returns.std() == 0:
+    if returns.empty or len(returns) < 2:
         return 0.0
+    
+    # 处理NaN值
+    returns = returns.fillna(0)
+    
     excess_returns = returns - (risk_free_rate / periods_per_year)
-    sharpe_ratio = excess_returns.mean() / excess_returns.std()
+    
+    # 计算标准差前先检查
+    std = excess_returns.std()
+    if std == 0:
+        return 0.0  # 如果波动率为0，夏普比率也为0
+        
+    sharpe_ratio = excess_returns.mean() / std
     return sharpe_ratio * np.sqrt(periods_per_year) # Annualize
 
 def calculate_max_drawdown(portfolio_values: pd.Series) -> float:
@@ -30,15 +40,22 @@ def calculate_max_drawdown(portfolio_values: pd.Series) -> float:
     返回:
         最大回撤 (百分比, e.g., 0.1 for 10% drawdown)
     """
-    if portfolio_values.empty:
+    if portfolio_values.empty or len(portfolio_values) < 2:
         return 0.0
-    # Calculate the cumulative maximum
+    
+    # 处理NaN值
+    portfolio_values = portfolio_values.ffill().bfill()
+    
+    # 计算最大回撤
     cumulative_max = portfolio_values.cummax()
-    # Calculate the drawdown
-    drawdown = (portfolio_values - cumulative_max) / cumulative_max
-    # Get the maximum drawdown
-    max_drawdown = drawdown.min() # This will be negative or zero
-    return abs(max_drawdown) if not pd.isna(max_drawdown) else 0.0
+    drawdowns = (portfolio_values - cumulative_max) / cumulative_max
+    max_drawdown = drawdowns.min()
+    
+    # 检查是否是有效值
+    if pd.isna(max_drawdown):
+        return 0.0
+        
+    return abs(max_drawdown)
 
 def calculate_sortino_ratio(returns: pd.Series, risk_free_rate: float = 0.0, periods_per_year: int = 252, target_return: float = 0.0) -> float:
     """
@@ -82,12 +99,28 @@ def calculate_cagr(portfolio_values: pd.Series, periods_per_year: int = 252) -> 
     """
     if portfolio_values.empty or len(portfolio_values) < 2:
         return 0.0
+    
+    # 处理NaN值
+    portfolio_values = portfolio_values.ffill().bfill()
+    
     start_value = portfolio_values.iloc[0]
     end_value = portfolio_values.iloc[-1]
-    num_years = len(portfolio_values) / periods_per_year
-    if start_value == 0 or num_years == 0: # Avoid division by zero or power of zero
+    
+    # 计算投资时间长度（以年为单位）
+    time_diff = (portfolio_values.index[-1] - portfolio_values.index[0]).total_seconds()
+    years = time_diff / (365.25 * 24 * 60 * 60)  # 转换为年
+    
+    # 安全检查
+    if start_value <= 0 or years <= 0:
         return 0.0
-    cagr = (end_value / start_value) ** (1 / num_years) - 1
+    
+    # 计算CAGR
+    cagr = (end_value / start_value) ** (1 / years) - 1
+    
+    # 检查是否是有效值
+    if pd.isna(cagr) or np.isinf(cagr):
+        return 0.0
+        
     return cagr
 
 def calculate_metrics(portfolio_values: pd.Series, risk_free_rate: float = 0.0, periods_per_year: int = 252) -> Dict[str, float]:
@@ -111,16 +144,44 @@ def calculate_metrics(portfolio_values: pd.Series, risk_free_rate: float = 0.0, 
             'total_return': 0.0,
             'volatility': 0.0
         }
-
-    returns = portfolio_values.pct_change().dropna()
+    
+    # 处理NaN值
+    portfolio_values = portfolio_values.ffill().bfill()
+    
+    # 计算收益率
+    returns = portfolio_values.pct_change().fillna(0)
+    
+    # 计算总收益率
     total_return = (portfolio_values.iloc[-1] / portfolio_values.iloc[0]) - 1
     
+    # 计算年化波动率
+    volatility = returns.std() * np.sqrt(periods_per_year)
+    if pd.isna(volatility) or np.isinf(volatility):
+        volatility = 0.0
+    
+    # 计算各项指标
+    cagr = calculate_cagr(portfolio_values, periods_per_year)
+    sharpe = calculate_sharpe_ratio(returns, risk_free_rate, periods_per_year)
+    max_dd = calculate_max_drawdown(portfolio_values)
+    
+    # 计算索提诺比率（只考虑下行风险）
+    downside_returns = returns[returns < 0]
+    if not downside_returns.empty and downside_returns.std() > 0:
+        sortino_ratio = (returns.mean() - (risk_free_rate / periods_per_year)) / downside_returns.std()
+        sortino_ratio = sortino_ratio * np.sqrt(periods_per_year)  # 年化
+        
+        # 检查有效性
+        if pd.isna(sortino_ratio) or np.isinf(sortino_ratio):
+            sortino_ratio = 0.0
+    else:
+        sortino_ratio = 0.0 if returns.mean() <= 0 else 100.0  # 如果平均收益为正但无下行风险
+    
     metrics = {
-        'cagr': calculate_cagr(portfolio_values, periods_per_year),
-        'sharpe_ratio': calculate_sharpe_ratio(returns, risk_free_rate, periods_per_year),
-        'max_drawdown': calculate_max_drawdown(portfolio_values),
-        'sortino_ratio': calculate_sortino_ratio(returns, risk_free_rate, periods_per_year),
+        'cagr': cagr,
+        'sharpe_ratio': sharpe,
+        'max_drawdown': max_dd,
+        'sortino_ratio': sortino_ratio,
         'total_return': total_return,
-        'volatility': returns.std() * np.sqrt(periods_per_year) # Annualized volatility
+        'volatility': volatility
     }
     return metrics

@@ -1,7 +1,29 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from typing import Dict, Any, List, Optional
+import platform
+
+# 设置中文字体支持
+def setup_chinese_font():
+    """根据操作系统设置合适的中文字体"""
+    system = platform.system()
+    if system == 'Windows':
+        font_path = 'C:/Windows/Fonts/simhei.ttf'  # 黑体
+        font_properties = mpl.font_manager.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = font_properties.get_name()
+    elif system == 'Darwin':  # macOS
+        plt.rcParams['font.family'] = 'Arial Unicode MS'
+    elif system == 'Linux':
+        plt.rcParams['font.family'] = 'WenQuanYi Micro Hei'
+    else:
+        # 使用matplotlib内置的sans-serif字体
+        plt.rcParams['font.family'] = 'sans-serif'
+        plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'sans-serif']
+    
+    # 修复负号显示
+    plt.rcParams['axes.unicode_minus'] = False
 
 def plot_equity_curve(portfolio_values: pd.Series, title: str = "Equity Curve", save_path: Optional[str] = None) -> None:
     """
@@ -15,14 +37,27 @@ def plot_equity_curve(portfolio_values: pd.Series, title: str = "Equity Curve", 
     if portfolio_values.empty:
         print("Cannot plot equity curve: portfolio_values is empty.")
         return
+    
+    # 设置中文字体
+    setup_chinese_font()
+    
     plt.figure(figsize=(10, 6))
     portfolio_values.plot()
     plt.title(title)
-    plt.xlabel("Date")
-    plt.ylabel("Portfolio Value")
+    plt.xlabel("日期")
+    plt.ylabel("组合价值")
     plt.grid(True)
+    
+    # 如果只有两个数据点，标记起点和终点
+    if len(portfolio_values) <= 2:
+        plt.scatter(portfolio_values.index, portfolio_values.values, color='red')
+        for i, (date, value) in enumerate(zip(portfolio_values.index, portfolio_values.values)):
+            label = "初始" if i == 0 else "最终"
+            plt.annotate(f"{label}: {value:.2f}", (date, value), xytext=(10, 10), 
+                         textcoords='offset points')
+    
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, dpi=300)
         print(f"Equity curve saved to {save_path}")
     else:
         plt.show()
@@ -39,17 +74,35 @@ def plot_drawdown(portfolio_values: pd.Series, title: str = "Drawdown", save_pat
     if portfolio_values.empty:
         print("Cannot plot drawdown: portfolio_values is empty.")
         return
+    
+    # 设置中文字体
+    setup_chinese_font()
+    
+    if len(portfolio_values) <= 1:
+        print("Cannot calculate drawdown: need at least 2 data points.")
+        return
+        
+    # 计算回撤
     cumulative_max = portfolio_values.cummax()
     drawdown = (portfolio_values - cumulative_max) / cumulative_max
     
     plt.figure(figsize=(10, 6))
     drawdown.plot(kind='area', color='red', alpha=0.3)
     plt.title(title)
-    plt.xlabel("Date")
-    plt.ylabel("Drawdown")
+    plt.xlabel("日期")
+    plt.ylabel("回撤")
     plt.grid(True)
+    
+    # 标记最大回撤点
+    max_dd_idx = drawdown.idxmin()
+    if not pd.isna(max_dd_idx):
+        max_dd = drawdown[max_dd_idx]
+        plt.scatter([max_dd_idx], [max_dd], color='blue', zorder=5)
+        plt.annotate(f"最大回撤: {max_dd:.2%}", (max_dd_idx, max_dd), 
+                     xytext=(10, 10), textcoords='offset points')
+    
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, dpi=300)
         print(f"Drawdown plot saved to {save_path}")
     else:
         plt.show()

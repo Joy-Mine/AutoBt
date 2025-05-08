@@ -18,6 +18,12 @@ class DualMovingAverageStrategy(bt.Strategy):
         self.order = None
         self.buy_price = None
 
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.buy_price = order.executed.price
+        self.order = None
+
     def next(self):
         if self.order:
             return
@@ -26,6 +32,8 @@ class DualMovingAverageStrategy(bt.Strategy):
             if self.crossover > 0:  # 短期均线上穿长期均线
                 size = int(self.broker.get_cash() / self.datas[0].close[0] * self.params.order_percentage)
                 self.order = self.buy(size=size)
+                if self.buy_price is None:
+                    self.buy_price = self.datas[0].close[0]
         else:
             if self.crossover < 0 or self.datas[0].close[0] < self.buy_price * (1 - self.params.stop_loss):
                 self.order = self.sell(size=self.position.size)
