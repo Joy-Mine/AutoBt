@@ -66,3 +66,48 @@ python main.py --mode optimize
 - 回测参数
 - 策略参数
 - 优化参数
+
+### 命令行参数
+
+系统支持以下命令行参数，方便灵活配置：
+
+```
+usage: main.py [-h] [--config CONFIG] [--mode {backtest,optimize}]
+               [--data-generator {monte_carlo,garch,regime,extreme,multi_asset,stress_test}]
+               [--strategy {SampleStrategy,DualMovingAverageStrategy,MeanReversionStrategy,MomentumStrategy}]
+
+选项:
+  -h, --help            显示帮助信息
+  --config CONFIG       配置文件路径 (默认: config/config.yaml)
+  --mode {backtest,optimize}
+                        运行模式: backtest(回测)或optimize(优化) (默认: backtest)
+  --data-generator {...} 
+                        数据生成器类型，覆盖配置文件中的设置
+  --strategy {...}      
+                        策略类型，覆盖配置文件中的设置
+```
+
+命令组合示例：
+
+```bash
+# 使用蒙特卡洛数据生成器和均值回归策略进行回测
+python main.py --data-generator monte_carlo --strategy MeanReversionStrategy
+
+# 使用压力测试数据生成器和动量策略进行回测
+python main.py --data-generator stress_test --strategy MomentumStrategy
+
+# 使用多资产相关性数据生成器和双均线策略进行回测
+python main.py --data-generator multi_asset --strategy DualMovingAverageStrategy
+
+# 使用极端事件模拟和简单移动平均策略进行回测
+python main.py --data-generator extreme --strategy SampleStrategy
+
+# 使用GARCH模型和均值回归策略进行回测
+python main.py --data-generator garch --strategy MeanReversionStrategy
+
+# 使用蒙特卡洛数据生成器和双均线策略进行参数优化
+python main.py --mode optimize --data-generator monte_carlo --strategy DualMovingAverageStrategy
+
+# 使用市场状态转换模型和动量策略进行参数优化
+python main.py --mode optimize --data-generator regime --strategy MomentumStrategy
+```

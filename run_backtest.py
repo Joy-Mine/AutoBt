@@ -90,7 +90,16 @@ def run_backtest(config: Dict[str, Any], plot: bool = True, results_dir: str = '
 
     # 创建Cerebro引擎并添加数据
     cerebro = bt.Cerebro()
-    cerebro.adddata(bt_data_feed)
+    
+    # 处理数据源，支持单个数据源或数据源列表
+    if isinstance(bt_data_feed, list):
+        # 如果是数据源列表（多资产情况），添加所有数据源
+        for data in bt_data_feed:
+            cerebro.adddata(data)
+        print(f"添加了 {len(bt_data_feed)} 个资产数据源")
+    else:
+        # 单个数据源
+        cerebro.adddata(bt_data_feed)
     
     # 添加一个观察者来跟踪投资组合价值
     cerebro.addobserver(bt.observers.Value)

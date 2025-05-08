@@ -32,13 +32,35 @@ def get_data_generator(config: Dict[str, Any]) -> BaseDataGenerator:
 
 # Helper to get strategy class (similar to run_backtest.py)
 def get_strategy_class(strategy_name: str) -> Type[bt.Strategy]:
+    """
+    根据策略名称获取策略类
+    
+    参数:
+        strategy_name: 策略名称
+        
+    返回:
+        策略类
+    """
+    # 处理不同的策略名称格式
+    if strategy_name == 'SampleStrategy':
+        module_name = 'src.strategies.sample_strategy'
+    elif strategy_name == 'DualMovingAverageStrategy':
+        module_name = 'src.strategies.dual_moving_average_strategy'
+    elif strategy_name == 'MeanReversionStrategy':
+        module_name = 'src.strategies.mean_reversion_strategy'
+    elif strategy_name == 'MomentumStrategy':
+        module_name = 'src.strategies.momentum_strategy'
+    else:
+        # 尝试使用默认格式
+        module_name = f"src.strategies.{strategy_name.lower()}_strategy"
+    
     try:
-        module = importlib.import_module(f"src.strategies.{strategy_name.lower()}_strategy")
+        module = importlib.import_module(module_name)
         return getattr(module, strategy_name)
     except ImportError as e:
-        raise ImportError(f"Cannot import strategy module: src.strategies.{strategy_name.lower()}_strategy. Error: {e}")
+        raise ImportError(f"无法导入策略模块: {module_name}. 错误: {e}")
     except AttributeError:
-        raise AttributeError(f"Strategy class {strategy_name} not found in module.")
+        raise AttributeError(f"在模块中未找到策略类 {strategy_name}.")
 
 
 class OptunaOptimizer:
