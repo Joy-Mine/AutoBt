@@ -2,6 +2,7 @@
 
 # 数据生成器配置
 data_generator:
+  type: monte_carlo  # 数据生成器类型: monte_carlo, garch, regime, extreme
   seed: 42  # 随机种子
   length: 1000  # 数据长度
   frequency: 'D'  # 数据频率: D(日线), H(小时线), M(分钟线)
@@ -33,8 +34,59 @@ backtest:
   commission: 0.001  # 手续费率
   slippage: 0.001  # 滑点
 
+# 策略配置
+strategies:
+  type: SampleStrategy  # 当前使用的策略类型
+
+  SampleStrategy:
+    fast_period: 10  # 快速均线周期
+    slow_period: 30  # 慢速均线周期
+    order_percentage: 0.95  # 下单资金比例
+    stop_loss: 0.05  # 止损比例
+
+  DualMovingAverageStrategy:
+    short_window: 20  # 短期均线窗口
+    long_window: 50  # 长期均线窗口
+    order_percentage: 0.9  # 下单资金比例
+    stop_loss: 0.1  # 止损比例
+
 # 参数优化
 optimization:
   trials: 100  # 优化尝试次数
   metric: 'sharpe_ratio'  # 优化指标
   direction: 'maximize'  # 优化方向
+  param_space:
+    SampleStrategy:
+      fast_period:
+        type: int
+        low: 5
+        high: 50
+      slow_period:
+        type: int
+        low: 20
+        high: 100
+      order_percentage:
+        type: float
+        low: 0.5
+        high: 1.0
+      stop_loss:
+        type: float
+        low: 0.01
+        high: 0.1
+    DualMovingAverageStrategy:
+      short_window:
+        type: int
+        low: 10
+        high: 40
+      long_window:
+        type: int
+        low: 50
+        high: 100
+      order_percentage:
+        type: float
+        low: 0.5
+        high: 1.0
+      stop_loss:
+        type: float
+        low: 0.05
+        high: 0.2
