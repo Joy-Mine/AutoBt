@@ -1,6 +1,5 @@
 import backtrader as bt
 import pandas as pd
-import importlib
 import os
 from typing import Dict, Any, Type, List
 
@@ -85,11 +84,19 @@ def run_backtest(config: Dict[str, Any], plot: bool = True, results_dir: str = '
 
     print(f"开始回测策略: {config['strategies']['type']}...")
     results = cerebro.run()
-    strat = results[0]
+    cerebro.plot()
     print(f"回测完成. 最终组合价值: {cerebro.broker.getvalue():.2f}")
 
-    portfolio_values = pd.Series([v[0] for v in strat.analyzers.pyfolio.get_analysis()['portfolio_value'].values()])
-    portfolio_values.index = pd.to_datetime([k for k in strat.analyzers.pyfolio.get_analysis()['portfolio_value'].keys()])
+    strat = results[0]
+    # 检查 pyfolio 分析器的输出
+    pyfolio_analysis = strat.analyzers.pyfolio.get_analysis()
+    if 'portfolio_value' not in pyfolio_analysis:
+        print("Warning: 'portfolio_value' not found in pyfolio analysis.")
+        # print(pyfolio_analysis)
+        return
+    # 提取投资组合价值
+    portfolio_values = pd.Series([v[0] for v in pyfolio_analysis['portfolio_value'].values()])
+    portfolio_values.index = pd.to_datetime([k for k in pyfolio_analysis['portfolio_value'].keys()])
     
     os.makedirs(results_dir, exist_ok=True)
     
